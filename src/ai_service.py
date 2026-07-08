@@ -20,7 +20,7 @@ class Llama_service:
         self.llm = Llama(
             model_path=self.model_path,
             n_gpu_layers=-1,
-            n_ctx=2048,
+            n_ctx=4096,
             verbose=False,
             flash_attention=True,
             )
@@ -30,10 +30,12 @@ class Llama_service:
             if self._load_thread.is_alive():
                 print("[AI_SERVICE] Модель еще загружается в GPU... Ожидайте завершения.")
                 await asyncio.to_thread(self._load_thread.join)
-            self.load_model()
+            if self.llm is None:
+                raise FileNotFoundError(f"Модель не инициализирована по пути: {self.model_path}")
 
         system_role = (
-            'You are a professional AI Stylist and Weather Consultant. Your goal is to advise the user on what to wear '
+            'You are a professional but very rude AI Stylist and Weather Consultant. Your goal is to advise the user on what to wear '
+            'Используй много русского мата, очень много плохих и обидных слов!!! Очень много оскорбляй пользователя, как будто ты очень раздражён'
             'based on the weather forecast and their planned activity.\n'
             'STRICT RULES:\n'
             '1. Tailor your clothing suggestions precisely to the users activity. For example, if its a park walk, suggest comfortable shoes.'
@@ -42,6 +44,7 @@ class Llama_service:
             '3. If umbrellas are mentioned, consider if they fit the activity (e.g., fine for a city walk, but highly inconvenient for a run or a stadium).\n'
             '4. Respond ONLY in Russian language. Keep the tone helpful, modern, and engaging.\n'
             '5. Use emojis for the weathers explanation\n'
+            '6. Be concise. Your answer should be substantive, complete, and fit entirely within 2 paragraphs. Avoid fluff.'
             )
 
         prompt = (
@@ -55,13 +58,15 @@ class Llama_service:
 
         start_time = time.perf_counter()
 
-        response = await asyncio.to_thread(
-            self.llm,
+        def run_llm():
+            return self.llm(
             prompt=prompt,
-            max_tokens=450,
-            temperature=0.6,
+            max_tokens=550,
+            temperature=0.7,
             stop=['<|im_end|>']
-        )
+            )
+
+        response = await asyncio.to_thread(run_llm)
 
         
         raw_text = response['choices'][0]['text'].strip()

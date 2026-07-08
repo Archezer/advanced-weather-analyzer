@@ -2,39 +2,50 @@ import os
 import asyncio
 from dotenv import load_dotenv
 
+# Загружаем переменные окружения
 load_dotenv()
 
-from src.weather_service import know_weather
-from src.ai_service import Llama_service
-from src.cli import get_city_coordinates, get_match_time, print_report, get_activity
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.client.telegram import TelegramAPIServer 
+import src.bot_handlers as bot_handlers # Импортируем сам модуль
+from src.ai_service import Llama_service # Импортируем сервис Лламы
 
 async def main():
-    api_key = os.getenv('YANDEX_API_KEY')
-    if not api_key:
-        print('Ошибка: Не найден ключ API Яндекс. Пожалуйста, установите переменную окружения YANDEX_API_KEY.')
+    bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    ws_proxy_base = "http://127.0.0.1:1443"
+
+    if not bot_token:
+        print("Ошибка: Переменная TELEGRAM_BOT_TOKEN не задана в .env файле.")
         return
 
-    ai_service = Llama_service()
+    print(f"🚀 Запуск Telegram-бота через туннель TG-WS-PROXY: {ws_proxy_base}")
 
-    place, lon, lat = await get_city_coordinates(api_key)
-    match_start = get_match_time()
-
-    weather_info = await know_weather(lon, lat, match_start)
-    if not weather_info:
-        print('Ошибка: Не удалось получить информацию о погоде.')
-        return
-
-    activity = get_activity()
-
-    ai_response = await ai_service.generate_answer(
-        weather_info['in_moment_temp'], 
-        weather_info['in_moment_rain_probability'], 
-        weather_info['max_rain_probability'],
-        activity,
-        place
+    # Создаем конфигурацию сервера
+    local_server = TelegramAPIServer(
+        base=f"{ws_proxy_base}/bot{{token}}/{{method}}",
+        file=f"{ws_proxy_base}/file/bot{{token}}/{{path}}"
     )
 
-    print_report(place, match_start, weather_info, ai_response)
+    # Инициализируем бота
+    bot = Bot(
+        token=bot_token, 
+        server=local_server,
+        default=DefaultBotProperties(parse_mode="Markdown")
+    )
+    
+    # КРИТИЧЕСКИЙ ШАГ: Связываем пустую переменную в bot_handlers с реальной моделью!
+    # Модель начнет загружаться в GPU фоном прямо сейчас
+    print("[LOG] Инициализация фоновой загрузки нейросети в видеокарту...")
+    bot_handlers.ai_service = Llama_service()
+    
+    dispatcher = Dispatcher()
+    dispatcher.include_router(bot_handlers.router)
+
+    try:
+        await dispatcher.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
