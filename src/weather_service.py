@@ -1,24 +1,32 @@
-import requests
+import os
+import aiohttp
 from datetime import datetime, timedelta
 
-def place_coord(place, api_key):
+PROXY = os.getenv('HTTP_PROXY')
+
+async def place_coord(place, api_key):
     url = f'https://geocode-maps.yandex.ru/v1/?apikey={api_key}&geocode={place}&format=json'
+
+    
     try:
-        response = requests.get(url)
-        data = response.json()
+        async with aiohttp.ClientSession(proxy=PROXY) as session:
+            async with session.get(url, proxy=PROXY, timeout=5) as response:
+                if response.status != 200:
+                    return None
+                data = await response.json()
 
         feature_member_list = data['response']['GeoObjectCollection']['featureMember']
         if not feature_member_list:
-            return None
-        
+                return None
+            
         get_coord = feature_member_list[0]['GeoObject']['Point']['pos']
 
         lon, lat = map(float, get_coord.split(' '))
         return lon, lat
-    except (requests.RequestException, KeyError, IndexError, ValueError):
-        return None
+    except (aiohttp.ClientError, KeyError, IndexError, ValueError):
+            return None
 
-def know_weather(lon, lat, match_start):
+async def know_weather(lon, lat, match_start):
     start_dt = match_start.strftime('%Y-%m-%d')
     end_dt = (match_start + timedelta(days=1)).strftime('%Y-%m-%d')
 
@@ -33,12 +41,14 @@ def know_weather(lon, lat, match_start):
     }
 
     try:
-        response = requests.get(url, params=params)
-        hourly = response.json()['hourly']
-    except(requests.RequestException, KeyError):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, proxy=PROXY, timeout=5) as response:
+                if response.status != 200:
+                    return None
+                data = await response.json(content_type=None)
+                hourly = data['hourly']
+    except Exception:
         return None
-
-
 
     best_index = None
     min_diff = timedelta(days=1)

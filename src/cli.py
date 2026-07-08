@@ -1,7 +1,7 @@
 from datetime import datetime
 from src.weather_service import place_coord
 
-def get_city_coordinates(api_key: str) -> tuple[str, float, float]:
+async def get_city_coordinates(api_key: str) -> tuple[str, float, float]:
     while True:
         print('Введите название города: ')
         place = input().strip()
@@ -9,7 +9,7 @@ def get_city_coordinates(api_key: str) -> tuple[str, float, float]:
             print('Ошибка: Название города не может быть пустым. Попробуйте снова.\n')
             continue
         
-        coords = place_coord(place, api_key)
+        coords = await place_coord(place, api_key)
         if coords is None:
             print('Ошибка: Не удалось получить координаты для указанного города. Попробуйте снова.\n')
             continue
