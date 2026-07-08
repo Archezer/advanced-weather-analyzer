@@ -14,10 +14,8 @@ class Llama_service:
                 
     def _load_model(self):
         if not os.path.exists(self.model_path):
-            print('[AI_SERVICE] Модель не обнаружена!')
             return
         
-        print('[AI_SERVICE]Началась фоновая загрузка модели...')
         self.llm = Llama(
             model_path=self.model_path,
             n_gpu_layers=-1,
@@ -28,23 +26,28 @@ class Llama_service:
     
     def wait_until_ready(self):
         if self._load_thread.is_alive():
-            print('[AI_SERVICE] Ожидание завершения загрузки модели...')
             self._load_thread.join()
                 
-    def generate_answer(self, temp, rain, max_rain, place):
+    def generate_answer(self, temp, rain, max_rain, activity, place):
         self.wait_until_ready()
         system_role = (
-            """You are a good football fan, your aim is to give an advice to another football fan how to dress on the coming football match.
-            remember: people cant use umbrellas on football match. Youre getting some information about start match 
-            (temperature on match time, rain probability, city) and max rain probability of the full day.
-            give an advice to football fan and dont forget to say all the weather information. Response only in Russian language. 
-            Dont use any text editing tools like markdown, html, etc. Dont use any emojis. Dont use any text formatting. Dont use any text decoration. 
-            Dont use any text styling. Dont use any text coloring. Dont use any text underlining"""
+            'You are a professional AI Stylist and Weather Consultant. Your goal is to advise the user on what to wear '
+            'based on the weather forecast and their planned activity.\n'
+            'STRICT RULES:\n'
+            '1. Tailor your clothing suggestions precisely to the users activity. For example, if its a park walk, suggest comfortable shoes.'
+            'If its a club night, suggest something stylish but consider the weather outside.\n'
+            '2. Always analyze and explicitly mention ALL provided weather numbers (temperature, rain probabilities) so the user is informed.\n'
+            '3. If umbrellas are mentioned, consider if they fit the activity (e.g., fine for a city walk, but highly inconvenient for a run or a stadium).\n'
+            '4. Respond ONLY in Russian language. Keep the tone helpful, modern, and engaging.\n'
+            '5. Use emojis for the weathers explanation\n'
             )
 
         prompt = (
             f'<|im_start|>system\n{system_role}<|im_end|>\n'
-            f'<|im_start|>user\nwhole information about weather: temp on match start:{temp}, rain probability on match start:{rain}, max rain probability:{max_rain}, city:{place}<|im_end|>\n'
+            f'<|im_start|>user\ncity:{place}.\n'
+            f'Users planned activity: {activity}'
+            f'whole information about weather: temp on match start:{temp}'
+            f', rain probability on match start:{rain}, max rain probability:{max_rain}<|im_end|>'
             f'<|im_start|>assistant\n'
         )
 
@@ -52,7 +55,7 @@ class Llama_service:
 
         response = self.llm(
             prompt=prompt,
-            max_tokens=500,
+            max_tokens=450,
             temperature=0.6,
             stop=['<|im_end|>']
         )
@@ -62,7 +65,6 @@ class Llama_service:
         clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
 
         end_time = time.perf_counter() - start_time
-        print(f'[AI_SERVICE] Ответ сгенерирован за: {end_time} с')
 
         tokens_generated = response['usage']['completion_tokens']
         tokens_per_second = tokens_generated / end_time if end_time > 0 else 0

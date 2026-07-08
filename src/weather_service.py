@@ -2,24 +2,23 @@ import requests
 from datetime import datetime, timedelta
 
 def place_coord(place, api_key):
+    url = f'https://geocode-maps.yandex.ru/v1/?apikey={api_key}&geocode={place}&format=json'
     try:
-        url = f'https://geocode-maps.yandex.ru/v1/?apikey={api_key}&geocode={place}&format=json'
-        response = requests.get(url).json()
+        response = requests.get(url)
+        data = response.json()
 
-        feature_member_list = response['response']['GeoObjectCollection']['featureMember']
-        first_match = feature_member_list[0]
-        get_coord = first_match['GeoObject']['Point']['pos']
-
-        coord_list = get_coord.split(' ')
-        lon = float(coord_list[0])
-        lat = float(coord_list[1])
+        feature_member_list = data['response']['GeoObjectCollection']['featureMember']
+        if not feature_member_list:
+            return None
         
+        get_coord = feature_member_list[0]['GeoObject']['Point']['pos']
+
+        lon, lat = map(float, get_coord.split(' '))
         return lon, lat
-    except (KeyError, IndexError) as e:
+    except (requests.RequestException, KeyError, IndexError, ValueError):
         return None
 
 def know_weather(lon, lat, match_start):
-
     start_dt = match_start.strftime('%Y-%m-%d')
     end_dt = (match_start + timedelta(days=1)).strftime('%Y-%m-%d')
 
@@ -33,8 +32,13 @@ def know_weather(lon, lat, match_start):
         'timezone': 'auto'
     }
 
-    response = requests.get(url, params=params).json()
-    hourly = response['hourly']
+    try:
+        response = requests.get(url, params=params)
+        hourly = response.json()['hourly']
+    except(requests.RequestException, KeyError):
+        return None
+
+
 
     best_index = None
     min_diff = timedelta(days=1)
@@ -53,12 +57,10 @@ def know_weather(lon, lat, match_start):
             match_day_temps.append(hourly['temperature_2m'][i])
             match_day_rain_probs.append(hourly['precipitation_probability'][i])
 
-    calculated_weather = {
+    return {
         'in_moment_temp': hourly['temperature_2m'][best_index],
         'in_moment_rain_probability': hourly['precipitation_probability'][best_index],
         'min_temp': min(match_day_temps),
         'max_temp': max(match_day_temps),
         'max_rain_probability': max(match_day_rain_probs)
     }
-
-    return calculated_weather

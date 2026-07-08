@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from src.weather_service import know_weather
 from src.ai_service import Llama_service
-from src.cli import get_city_coordinates, get_match_time, print_report
+from src.cli import get_city_coordinates, get_match_time, print_report, get_activity
 
 def main():
     load_dotenv()
@@ -15,16 +15,18 @@ def main():
 
     place, lon, lat = get_city_coordinates(api_key)
     match_start = get_match_time()
+    activity = get_activity()
 
     weather_info = know_weather(lon, lat, match_start)
     if not weather_info:
         print('Ошибка: Не удалось получить информацию о погоде.')
         return
-
+    
     ai_response = ai_service.generate_answer(
         weather_info['in_moment_temp'], 
         weather_info['in_moment_rain_probability'], 
         weather_info['max_rain_probability'],
+        activity,
         place
     )
 
