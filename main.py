@@ -26,7 +26,7 @@ async def main():
 
     activity = get_activity()
 
-    ai_response = ai_service.generate_answer(
+    ai_response = await ai_service.generate_answer(
         weather_info['in_moment_temp'], 
         weather_info['in_moment_rain_probability'], 
         weather_info['max_rain_probability'],

@@ -1,18 +1,19 @@
 import os
 import re
 import time
+import asyncio
 import threading
 from llama_cpp import Llama
 
 class Llama_service:
     def __init__(self, model_path='C:/VSC/ai_models/Qwythos-9B-Claude/Qwythos-9B-Claude-Mythos-5-1M-MTP-Q5_K_M.gguf'):
-         self.model_path = model_path
-         self.llm = None
+        self.model_path = model_path
+        self.llm = None
 
-         self._load_thread = threading.Thread(target=self._load_model)
-         self._load_thread.start() 
+        self._load_thread = threading.Thread(target=self._sync_load_model, daemon=True)
+        self._load_thread.start()
                 
-    def _load_model(self):
+    def _sync_load_model(self):
         if not os.path.exists(self.model_path):
             return
         
@@ -23,13 +24,14 @@ class Llama_service:
             verbose=False,
             flash_attention=True,
             )
-    
-    def wait_until_ready(self):
-        if self._load_thread.is_alive():
-            self._load_thread.join()
                 
-    def generate_answer(self, temp, rain, max_rain, activity, place):
-        self.wait_until_ready()
+    async def generate_answer(self, temp, rain, max_rain, activity, place):
+        if self.llm is None:
+            if self._load_thread.is_alive():
+                print("[AI_SERVICE] Модель еще загружается в GPU... Ожидайте завершения.")
+                await asyncio.to_thread(self._load_thread.join)
+            self.load_model()
+
         system_role = (
             'You are a professional AI Stylist and Weather Consultant. Your goal is to advise the user on what to wear '
             'based on the weather forecast and their planned activity.\n'
@@ -53,7 +55,8 @@ class Llama_service:
 
         start_time = time.perf_counter()
 
-        response = self.llm(
+        response = await asyncio.to_thread(
+            self.llm,
             prompt=prompt,
             max_tokens=450,
             temperature=0.6,

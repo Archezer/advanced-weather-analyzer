@@ -32,14 +32,14 @@ def get_activity() -> str:
 
 
 def print_report(place, match_start, weather_info, ai_response):
-    print(f"{'='*50}\n")
+    print(f"{'='*50}")
     print(f"Сводка погоды | {place} | {match_start.strftime('%Y-%m-%d %H:%M')}")
-    print(f"{'='*50}\n")
+    print(f"{'='*50}")
     print(f"Температура в указанное время: {weather_info['in_moment_temp']}°C")
     print(f"Вероятность осадков в указанное время: {weather_info['in_moment_rain_probability']}%")
     print(f"Минимум / Максимум за день: {weather_info['min_temp']}°C ... {weather_info['max_temp']}°C")
     print(f"Максимальный риск дождя за день: {weather_info['max_rain_probability']}%")
-    print(f"{'='*50}\n")
+    print(f"{'='*50}")
 
     print(f"\nСовет от AI:\n{'='*50}\n{ai_response}")
     print(f"{'='*50}\n")
