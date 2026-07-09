@@ -61,7 +61,7 @@ class Llama_service:
         def run_llm():
             return self.llm(
             prompt=prompt,
-            max_tokens=550,
+            max_tokens=450,
             temperature=0.7,
             stop=['<|im_end|>']
             )

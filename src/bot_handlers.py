@@ -7,7 +7,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from src.weather_service import place_coord, know_weather, coord_to_place
-from src.ai_service import Llama_service
 
 router = Router()
 
@@ -81,6 +80,7 @@ async def process_city(message: types.Message, state: FSMContext):
 
     kb = InlineKeyboardBuilder()
     kb.add(types.InlineKeyboardButton(text="⬅️ Назад к выбору города", callback_data="back_to_city"))
+    kb.add(types.InlineKeyboardButton(text='⚡ Сейчас', callback_data='time_now'))
 
     temp_msg = await message.answer("Переходим к следующему шагу...", reply_markup=remove_kb)
     await safe_delete(message, temp_msg.message_id)
@@ -109,6 +109,35 @@ async def back_to_city_handler(callback: types.CallbackQuery, state: FSMContext)
         reply_markup=kb_builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
     )
     await state.update_data(start_bot_msg_id=bot_msg.message_id, user_start_msg_id=callback.message.message_id)
+    await callback.answer()
+
+@router.callback_query(WeatherForm.waiting_for_time, F.data == "time_now")
+async def process_time_now_handler(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    await safe_delete(callback.message, user_data.get('time_bot_msg_id'))
+
+    now = datetime.now()
+    time_str = now.strftime('%d-%m-%Y %H:%M')
+
+    city = user_data['city_name']
+    lon = user_data['lon']
+    lat = user_data['lat']
+
+    weather_task = asyncio.create_task(know_weather(lon, lat, now))
+
+    kb = InlineKeyboardBuilder()
+    kb.add(types.InlineKeyboardButton(text="⬅️ Назад к вводу даты", callback_data="back_to_time"))
+
+    bot_msg = await callback.message.answer(
+        f'📍 Город: {city}\n\n'
+        f'📅 Дата: {time_str} (Прямо сейчас)\n\n'
+        '🎟 Какое мероприятие вы планируете? (Например, прогулка в парке/ночной поход в ближайшую рощу)',
+        reply_markup=kb.as_markup()
+    )
+
+    await state.update_data(time=now, weather_task=weather_task, activity_bot_msg_id=bot_msg.message_id)
+    await state.set_state(WeatherForm.waiting_for_activity)
+
     await callback.answer()
 
 @router.message(WeatherForm.waiting_for_time)
@@ -162,6 +191,7 @@ async def back_to_time_handler(callback: types.CallbackQuery, state: FSMContext)
 
     kb = InlineKeyboardBuilder()
     kb.add(types.InlineKeyboardButton(text="⬅️ Назад к выбору города", callback_data="back_to_city"))
+    kb.add(types.InlineKeyboardButton(text='⚡ Сейчас', callback_data="time_now"))
 
     bot_msg = await callback.message.answer(
         f"📍 Город *{city}* успешно найден!\n\n"
