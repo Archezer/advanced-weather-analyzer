@@ -70,7 +70,10 @@ class Llama_service:
 
         
         raw_text = response['choices'][0]['text'].strip()
-        clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+        clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL)
+        clean_text = re.sub(r'<think>.*$', '', clean_text, flags=re.DOTALL).strip()
+        if not clean_text and "<think>" not in raw_text and "</think>" in raw_text:
+            clean_text = raw_text.split("</think>")[-1].strip()
 
         end_time = time.perf_counter() - start_time
 
