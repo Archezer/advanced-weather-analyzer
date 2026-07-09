@@ -5,8 +5,8 @@ from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from src.weather_service import place_coord, know_weather
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from src.weather_service import place_coord, know_weather, coord_to_place
 from src.ai_service import Llama_service
 
 router = Router()
@@ -27,15 +27,21 @@ async def safe_delete(message: types.Message, message_id: int):
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
+
+    kb_builder = ReplyKeyboardBuilder()
+    kb_builder.row(types.KeyboardButton(text="📍 Поделиться локацией", request_location=True))
+
     bot_msg = await message.answer('👋 Привет! Я твой персональный AI-Стилист.\n'
-                         'Введите название города, в котором планируется мероприятие:')
+                         'Введите название города, в котором планируется мероприятие:',
+                         reply_markup=kb_builder.as_markup(resize_keyboard=True, one_time_keyboard=True))
     await state.update_data(start_bot_msg_id=bot_msg.message_id, user_start_msg_id=message.message_id)
     await state.set_state(WeatherForm.waiting_for_city)
 
-@router.message(WeatherForm.waiting_for_city)
+@router.message(WeatherForm.waiting_for_city, F.text | F.location)
 async def process_city(message: types.Message, state: FSMContext):
-    city = message.text.strip()
+
     api_key = os.getenv('YANDEX_API_KEY')
+    api_key_r = os.getenv('REVERSE_GEOCODE_API_KEY')
 
     user_data = await state.get_data()
 
@@ -45,20 +51,39 @@ async def process_city(message: types.Message, state: FSMContext):
 
     status_msg = await message.answer('🔍 Ищу город и проверяю координаты...')
 
-    coords = await place_coord(city, api_key)
-    if coords is None:
-        await safe_delete(message, status_msg.message_id)
+    lon, lat, city = None, None, None
 
-        bot_msg = await message.answer('❌ Ошибка: не удалось найти такой город(( \nПопробуйте еще разок:')
-        await state.update_data(start_bot_msg_id=bot_msg.message_id, user_start_msg_id=message.message_id)
+    if message.location:
+        lon = message.location.longitude
+        lat = message.location.latitude
+        city = await coord_to_place(lon, lat, api_key_r)
+    elif message.text:
+        city = message.text.strip()
+        coords = await place_coord(city, api_key)
+
+        if coords is None:
+            await safe_delete(message, status_msg.message_id)
+            kb_builder = ReplyKeyboardBuilder()
+            kb_builder.row(types.KeyboardButton(text="📍 Поделиться локацией", request_location=True))
+
+            bot_msg = await message.answer('❌ Ошибка: не удалось найти такой город(( \nПопробуйте еще разок:')
+            await state.update_data(start_bot_msg_id=bot_msg.message_id, user_start_msg_id=message.message_id)
+            return
+        lon, lat = coords[0], coords[1]
+    else:
+        await safe_delete(message, status_msg.message_id)
         return
     
-    lon, lat = coords
     await state.update_data(city_name=city, lon=lon, lat=lat)
     await safe_delete(message, status_msg.message_id)
 
+    remove_kb = types.ReplyKeyboardRemove()
+
     kb = InlineKeyboardBuilder()
     kb.add(types.InlineKeyboardButton(text="⬅️ Назад к выбору города", callback_data="back_to_city"))
+
+    temp_msg = await message.answer("Переходим к следующему шагу...", reply_markup=remove_kb)
+    await safe_delete(message, temp_msg.message_id)
 
     bot_msg = await message.answer(
         f"📍 Город {city} успешно найден!\n\n"
@@ -73,14 +98,17 @@ async def process_city(message: types.Message, state: FSMContext):
 @router.callback_query(F.data == "back_to_city")
 async def back_to_city_handler(callback: types.CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
-
     await safe_delete(callback.message, user_data.get('time_bot_msg_id'))
-
     await state.set_state(WeatherForm.waiting_for_city)
 
-    bot_msg = await callback.message.answer('👋 Введите название города, в котором планируется мероприятие:')
-    await state.update_data(start_bot_msg_id=bot_msg.message_id, user_start_msg_id=callback.message.message_id)
+    kb_builder = ReplyKeyboardBuilder()
+    kb_builder.row(types.KeyboardButton(text="📍 Поделиться локацией", request_location=True))
 
+    bot_msg = await callback.message.answer(
+        '👋 Введите название города, в котором планируется мероприятие:',
+        reply_markup=kb_builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
+    )
+    await state.update_data(start_bot_msg_id=bot_msg.message_id, user_start_msg_id=callback.message.message_id)
     await callback.answer()
 
 @router.message(WeatherForm.waiting_for_time)

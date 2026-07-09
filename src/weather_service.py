@@ -6,7 +6,6 @@ PROXY = os.getenv('HTTP_PROXY')
 
 async def place_coord(place, api_key):
     url = f'https://geocode-maps.yandex.ru/v1/?apikey={api_key}&geocode={place}&format=json'
-
     
     try:
         async with aiohttp.ClientSession(proxy=PROXY) as session:
@@ -25,6 +24,26 @@ async def place_coord(place, api_key):
         return lon, lat
     except (aiohttp.ClientError, KeyError, IndexError, ValueError):
             return None
+    
+async def coord_to_place(lon, lat, api_key):
+    url = f'http://api.openweathermap.org/geo/1.0/reverse?lat={lat}&lon={lon}&appid={api_key}'
+
+    try:
+        async with aiohttp.ClientSession(proxy=PROXY) as session:
+            async with session.get(url, proxy=PROXY, timeout=5) as response:
+                if response.status != 200:
+                    return None
+                data = await response.json()
+            if not data:
+                return None
+
+        city = data[0].get('local_names', {}).get('ru')
+        if not city:
+            return data[0].get('name', 'Неизвестный город')
+        
+        return city
+    except (aiohttp.ClientError, KeyError, IndexError, ValueError):
+        return None
 
 async def know_weather(lon, lat, match_start):
     start_dt = match_start.strftime('%Y-%m-%d')
