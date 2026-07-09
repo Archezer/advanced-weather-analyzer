@@ -1,4 +1,5 @@
 import os
+import asyncio
 from datetime import datetime
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart
@@ -54,7 +55,13 @@ async def process_time(message: types.Message, state: FSMContext):
         await message.answer("Неверный формат даты! Напишите еще раз в формате `ДД-ММ-ГГГГ ЧЧ:ММ`:")
         return
     
-    await state.update_data(time=time)
+    user_data = await state.get_data()
+    lon = user_data['lon']
+    lat = user_data['lat']
+
+    weather_task = asyncio.create_task(know_weather(lon, lat, time))
+
+    await state.update_data(time=time, weather_task=weather_task)
     await message.answer('Какое мероприятие вы планируете? (Например, прогулка в парке/ночной поход в ближайшую рощу)')
     await state.set_state(WeatherForm.waiting_for_activity)
 
@@ -64,13 +71,16 @@ async def process_activity(message: types.Message, state: FSMContext):
 
     user_data = await state.get_data()
     city = user_data['city_name']
-    lon = user_data['lon']
-    lat = user_data['lat']
     time = user_data['time']
+    weather_task = user_data['weather_task']
 
     await message.answer('⏳ Собираю сводку погоды и отправляю запрос стилисту. Это займет несколько секунд...')
 
-    weather_info = await know_weather(lon, lat, time)
+    try:
+        weather_info = await weather_task
+    except Exception:
+        weather_info = None
+
     if not weather_info:
         await message.answer('❌ К сожалению, не удалось получить данные о погоде с сервера Open-Meteo.')
         await state.clear()
