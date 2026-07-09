@@ -26,8 +26,8 @@ def get_location_kb():
 
 def get_time_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад к выбору города", callback_data="back_to_city")],
-        [InlineKeyboardButton(text='⚡ Сейчас', callback_data='time_now')]
+        [InlineKeyboardButton(text='⚡ Сейчас', callback_data='time_now')],
+        [InlineKeyboardButton(text="⬅️ Назад к выбору города", callback_data="back_to_city")]
     ])
 
 def get_activity_kb():
@@ -111,12 +111,12 @@ async def process_city(message: types.Message, state: FSMContext):
             await state.update_data(main_msg_id=err_msg.message_id)
             return
         await safe_delete(status_msg)
-        lon, lat = coords, coords
+        lon, lat = coords[0], coords[1]
 
     await state.update_data(city_name=city, lon=lon, lat=lat)
 
     main_msg = await message.answer(
-        f"📍 Город {city} успешно найден!\n\n📅 Введите дату и время в формате:\n`ДД-ММ-ГГГГ ЧЧ:ММ` (например: `25-06-2026 15:30`)",
+        f"📍 Город {city} успешно найден!\n\n📅 Введите дату и время в формате:\n`ДД-ММ-ГГГГ ЧЧ:ММ`\n(например: `{datetime.now().strftime('%d-%m-%Y %H:%M')}`) ",
         reply_markup=get_time_kb()
     )
     await state.update_data(main_msg_id=main_msg.message_id)

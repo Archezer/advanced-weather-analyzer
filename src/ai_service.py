@@ -43,7 +43,7 @@ class Llama_service:
             '2. Always analyze and explicitly mention ALL provided weather numbers (temperature, rain probabilities) so the user is informed.\n'
             '3. If umbrellas are mentioned, consider if they fit the activity (e.g., fine for a city walk, but highly inconvenient for a run or a stadium).\n'
             '4. Respond ONLY in Russian language. Keep the tone helpful, modern, and engaging.\n'
-            '5. Use emojis for the weathers explanation\n'
+            '5. Use a lot of emojis for the weathers explanation\n'
             '6. Be concise. Your answer should be substantive, complete, and fit entirely within 2 paragraphs. Avoid fluff.'
             )
 
